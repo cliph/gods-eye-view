@@ -6,6 +6,12 @@
   `node scripts/generate-icons.mjs` and committed, so a plain `vite build` needs
   no image toolchain. The existing SVG favicon still serves the browser tab.
 
+- Add nine Ontario transit feeds: TTC, MiWay, Hamilton HSR, Durham Region,
+  YRT/Viva, Guelph, Burlington, Barrie and Kingston, each carrying its own
+  licence quote and attribution. A feed can now name its own modes, so Toronto's
+  trams read "Streetcar" while Helsinki's stay "Tram", and a feed whose route ids
+  are internal keys can translate them to the number a rider would say.
+
 - Distinguish PARTIAL vessel snapshots from STALE data in the layer panel, with
   accepted-record counts and unchanged retention, freshness and outage safeguards.
 
