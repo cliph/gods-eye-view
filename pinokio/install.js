@@ -28,6 +28,7 @@ module.exports = {
           LL2_API_TOKEN: '{{env.LL2_API_TOKEN || ""}}',
           GEV_RATELIMIT_OPENAI_PER_MIN: '{{env.GEV_RATELIMIT_OPENAI_PER_MIN || ""}}',
           GEV_RATELIMIT_GOOGLE_PER_MIN: '{{env.GEV_RATELIMIT_GOOGLE_PER_MIN || ""}}',
+          GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN: '{{env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN || ""}}',
         },
         message: 'node scripts/pinokio-install.mjs',
       },

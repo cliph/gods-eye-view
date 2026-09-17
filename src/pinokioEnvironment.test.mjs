@@ -43,6 +43,7 @@ test('the fresh template keeps provider credentials out of native Configure', ()
   assert.equal(configured.PINOKIO_SHARE_VAR, '__gev_sharing_disabled__');
   assert.equal(configured.GEV_RATELIMIT_OPENAI_PER_MIN, '30');
   assert.equal(configured.GEV_RATELIMIT_GOOGLE_PER_MIN, '120');
+  assert.equal(configured.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN, '240');
   assert.match(source, /Do not enter credentials in Pinokio 8\.0\.40's native Configure panel/);
   assert.match(source, /trusted local text editor/);
   assert.match(source, /Stop and Start the app/);
@@ -57,6 +58,7 @@ test('raw app-file values override Pinokio-global values, including blanks', () 
       'OPENAI_API_KEY=',
       'GEV_RATELIMIT_OPENAI_PER_MIN=45',
       'GEV_RATELIMIT_GOOGLE_PER_MIN=',
+      'GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN=15',
       'PINOKIO_SHARE_CLOUDFLARE=false',
       'PINOKIO_SHARE_LOCAL=false',
       'PINOKIO_SHARE_VAR=__gev_sharing_disabled__',
@@ -68,6 +70,7 @@ test('raw app-file values override Pinokio-global values, including blanks', () 
       OPENAI_API_KEY: 'global-openai',
       GEV_RATELIMIT_OPENAI_PER_MIN: '999',
       GEV_RATELIMIT_GOOGLE_PER_MIN: '999',
+      GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN: '999',
       PINOKIO_SHARE_CLOUDFLARE: 'true',
       PINOKIO_SHARE_LOCAL: 'true',
       PINOKIO_SHARE_PASSCODE: 'global-passcode',
@@ -80,6 +83,7 @@ test('raw app-file values override Pinokio-global values, including blanks', () 
     assert.equal(environment.OPENAI_API_KEY, '');
     assert.equal(environment.GEV_RATELIMIT_OPENAI_PER_MIN, '45');
     assert.equal(environment.GEV_RATELIMIT_GOOGLE_PER_MIN, '');
+    assert.equal(environment.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN, '15');
     assert.equal(environment.PINOKIO_SHARE_CLOUDFLARE, 'false');
     assert.equal(environment.PINOKIO_SHARE_LOCAL, 'false');
     assert.equal(environment.PINOKIO_SHARE_VAR, '__gev_sharing_disabled__');
@@ -98,6 +102,7 @@ test('an existing Pinokio file gains the canonical non-secret sharing boundary',
       GOOGLE_MAPS_API_KEY: 'global-google',
       GEV_RATELIMIT_OPENAI_PER_MIN: '999',
       GEV_RATELIMIT_GOOGLE_PER_MIN: '999',
+      GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN: '999',
       PINOKIO_SHARE_LOCAL: 'true',
       PINOKIO_SHARE_VAR: 'url',
       PINOKIO_SHARE_PASSCODE: 'global-passcode',
@@ -109,6 +114,7 @@ test('an existing Pinokio file gains the canonical non-secret sharing boundary',
     assert.equal(environment.GOOGLE_MAPS_API_KEY, '');
     assert.equal(environment.GEV_RATELIMIT_OPENAI_PER_MIN, '30');
     assert.equal(environment.GEV_RATELIMIT_GOOGLE_PER_MIN, '120');
+    assert.equal(environment.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN, '240');
     assert.equal(environment.PINOKIO_SHARE_LOCAL, 'false');
     assert.equal(environment.PINOKIO_SHARE_VAR, '__gev_sharing_disabled__');
     assert.equal(environment.PINOKIO_SHARE_PASSCODE, '');
@@ -118,6 +124,7 @@ test('an existing Pinokio file gains the canonical non-secret sharing boundary',
     assert.match(persisted, /^OPENAI_API_KEY=app-value$/m);
     assert.doesNotMatch(persisted, /^GEV_RATELIMIT_OPENAI_PER_MIN=/m);
     assert.doesNotMatch(persisted, /^GEV_RATELIMIT_GOOGLE_PER_MIN=/m);
+    assert.doesNotMatch(persisted, /^GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN=/m);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
