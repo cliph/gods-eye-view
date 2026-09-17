@@ -18,6 +18,11 @@ import {
 } from './cctv/constants.js';
 import { sanitizeCctvRangeHeader } from './cctv/range.js';
 import { googleServerApiKey } from './places/google-key.js';
+import {
+  resolveStreetViewRequest,
+  streetViewRateLimiter,
+  clientKey,
+} from './cctv/streetview.js';
 export { CCTV_FRAME_FETCH_TIMEOUT_MS, fetchCctvImageFromUpstream };
 /**
  * Vite plugin: CCTV camera proxy with source registry, frame/media serving,
@@ -341,13 +346,14 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
         const source = sourceById.get(cameraId);
         const label = url.searchParams.get('label') || source?.name || cameraId;
         const city = url.searchParams.get('city') || source?.city || '';
-        const lat = Number(url.searchParams.get('lat') || source?.lat);
-        const lon = Number(url.searchParams.get('lon') || source?.lon);
-        const heading = Number(
-          url.searchParams.get('heading') || source?.headingDeg,
-        );
-        const fov = Number(url.searchParams.get('fov') || source?.fovDeg);
-        const pitch = Number(url.searchParams.get('pitch') || source?.pitchDeg);
+        // `label`/`city` remain free text for the synthetic frame only. The POSE
+        // is admitted by the resolver instead of read straight off the query
+        // string: it anchors a client pose to its registered camera and refuses
+        // an unregistered id unless the catalog is genuinely empty (issue #20).
+        const streetViewRequest = resolveStreetViewRequest({
+          source,
+          params: url.searchParams,
+        });
 
         // Only use server-registered upstream URLs — never accept client-supplied URLs
         // (prevents SSRF via ?upstream= query parameter)
@@ -377,27 +383,38 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
           return;
         }
 
-        const sv = await streetViewFallback({
-          lat,
-          lon,
-          heading,
-          fov,
-          pitch,
-        });
-        if (sv?.ok) {
-          setHealth(cameraId, {
-            status: 'degraded',
-            sourceKind: 'streetview',
-            label: 'Google Street View',
-            message: 'Fallback Street View frame',
-          });
-          res.writeHead(200, {
-            'Content-Type': sv.contentType,
-            'Cache-Control': 'no-store',
-            'X-CCTV-Source': 'streetview',
-          });
-          res.end(sv.body);
-          return;
+        // The opt-in per-IP ceiling is checked HERE and nowhere else, so ordinary
+        // upstream frames are never throttled — only the branch that spends
+        // metered Google quota. A block is not a 429: this route's contract is
+        // that it always answers with an image, so a throttled request falls
+        // through to the synthetic frame and says so in the health report.
+        // The key check comes BEFORE the limiter: streetViewFallback bails out
+        // immediately without one, so charging the bucket first would burn a
+        // budget that can never be spent and report a throttle that never
+        // happened to keyless operators.
+        let streetViewThrottled = false;
+        if (streetViewRequest && googleServerApiKey()) {
+          const limiter = streetViewRateLimiter();
+          if (limiter && !limiter(clientKey(req))) {
+            streetViewThrottled = true;
+          } else {
+            const sv = await streetViewFallback(streetViewRequest);
+            if (sv?.ok) {
+              setHealth(cameraId, {
+                status: 'degraded',
+                sourceKind: 'streetview',
+                label: 'Google Street View',
+                message: 'Fallback Street View frame',
+              });
+              res.writeHead(200, {
+                'Content-Type': sv.contentType,
+                'Cache-Control': 'no-store',
+                'X-CCTV-Source': 'streetview',
+              });
+              res.end(sv.body);
+              return;
+            }
+          }
         }
 
         const svg = buildSyntheticCctvSvg({
@@ -413,9 +430,11 @@ export function cctvProxy({ sourceRoot = process.cwd() } = {}) {
           status: 'degraded',
           sourceKind: 'synthetic',
           label: source?.provider || 'Synthetic fallback',
-          message: source?.url
-            ? 'Upstream unavailable'
-            : 'No source configured',
+          message: streetViewThrottled
+            ? 'Street View fallback rate limited'
+            : source?.url
+              ? 'Upstream unavailable'
+              : 'No source configured',
         });
 
         res.writeHead(200, {
