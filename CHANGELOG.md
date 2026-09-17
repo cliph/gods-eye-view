@@ -1,5 +1,17 @@
 # Changelog
 
+- Close the CCTV Street View fallback to unregistered camera ids: a frame request
+  whose id is absent from the server catalog no longer reaches the metered Google
+  Street View Static API at all, and a registered camera's client-supplied pose is
+  anchored within 1.5 km of its registered position, with coordinates, heading,
+  fov and pitch validated and clamped. The radius covers the furthest pose the
+  calibration gizmo can reach, so the calibration preview is preserved unchanged;
+  the client's seeded no-config demo catalog now shows its synthetic card rather
+  than Street View, as it already does without a Google key. Adds the opt-in per-IP `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN`
+  ceiling on that branch only, which is unlimited by default, never throttles
+  ordinary upstream frames, and degrades to the existing synthetic frame with a
+  visible health entry instead of returning an error.
+
 - Distinguish PARTIAL vessel snapshots from STALE data in the layer panel, with
   accepted-record counts and unchanged retention, freshness and outage safeguards.
 
