@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { cctvProxy } from '../../server/providers/cctv.js';
 import {
   STREET_VIEW_ANCHOR_RADIUS_M,
+  STREET_VIEW_DEFAULT_PER_MIN,
   resolveStreetViewRequest,
   streetViewRateLimiter,
 } from '../../server/providers/cctv/streetview.js';
@@ -202,15 +203,21 @@ test('the resolver performs no I/O and holds no state', () => {
 
 // ─── Opt-in limiter ──────────────────────────────────────────────────────────
 
-test('the Street View limiter is unlimited by default and blocks past a configured cap', () => {
+test('the Street View limiter caps by default, and only an explicit 0 opts out', () => {
+  // Issue #20 asks for MANDATORY quota controls before any Street View request.
+  // The house convention for GEV_RATELIMIT_* is opt-in/unlimited, but those
+  // endpoints are user-initiated; this one is polled by the app itself for every
+  // visible camera, so an unset default of "unlimited" would leave the metered
+  // branch uncapped on exactly the installs least likely to tune it.
   const previousLimit = process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN;
   try {
     delete process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN;
-    assert.equal(streetViewRateLimiter({ rebuild: true }), null, 'unset env must be a runtime no-op');
+    assert.equal(typeof streetViewRateLimiter({ rebuild: true }), 'function', 'unset env must still cap');
+    assert.equal(STREET_VIEW_DEFAULT_PER_MIN, 240);
     process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN = '0';
-    assert.equal(streetViewRateLimiter({ rebuild: true }), null, '0 must stay unlimited');
+    assert.equal(streetViewRateLimiter({ rebuild: true }), null, 'an explicit 0 is the documented opt-out');
     process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN = 'lots';
-    assert.equal(streetViewRateLimiter({ rebuild: true }), null, 'garbage must stay unlimited');
+    assert.equal(typeof streetViewRateLimiter({ rebuild: true }), 'function', 'a typo must not silently disable the cap');
 
     process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN = '2';
     const limiter = streetViewRateLimiter({ rebuild: true });
@@ -244,7 +251,13 @@ test('the Street View limiter is a separate budget from the Places limiter', () 
   try {
     delete process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN;
     process.env.GEV_RATELIMIT_GOOGLE_PER_MIN = '1';
-    assert.equal(streetViewRateLimiter({ rebuild: true }), null, 'the Places cap must not throttle CCTV frames');
+    const limiter = streetViewRateLimiter({ rebuild: true });
+    const key = clientKey({ socket: { remoteAddress: '10.0.0.3' } });
+    // The Places cap of 1/min must not govern CCTV frames: the CCTV budget is
+    // its own, so the second and third frames still pass.
+    assert.equal(limiter(key), true);
+    assert.equal(limiter(key), true);
+    assert.equal(limiter(key), true, 'a 1/min Places cap must not throttle camera frames');
   } finally {
     if (previousStreetView === undefined) delete process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN;
     else process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN = previousStreetView;

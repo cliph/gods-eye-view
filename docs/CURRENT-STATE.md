@@ -1255,7 +1255,7 @@ client always sends a full pose and the calibration gizmo legitimately drives
 it, so the pose is anchored rather than ignored: `/api/cctv/frame/:id` rejects
 an unregistered camera id, a pose further than 1.5 km from that camera's
 registered position, and non-numeric or out-of-range coordinates before the
-opt-in limiter and upstream request. The radius is sized off the furthest pose
+limiter and upstream request. The radius is sized off the furthest pose
 the calibration UI can reach: its north and east offsets clamp to +/-900 m
 independently, so a diagonal drag lands 1272.8 m out. An unregistered id is
 refused outright, including when the catalog is empty — the always-on austin and
@@ -1267,7 +1267,10 @@ a deployment without a Google key never spends a budget it cannot use. An
 unparsable pose value falls back to the registered source and then to the
 historical heading 0 / fov 80 / pitch 0 defaults; heading is normalized into
 [0, 360) and fov and pitch are clamped to the Street View Static API envelope.
-`GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is an opt-in per-IP ceiling on that one
+`GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` defaults to 240 req/min/IP — on by
+default like the other cost-bearing throttles, with its own budget since the app polls this endpoint itself;
+an explicit 0 opts out and an unparsable value falls back to the default rather
+than uncapping. It is a per-IP ceiling on that one
 branch — unset or 0 is unlimited and unchanged, ordinary upstream frames are
 never throttled, and a blocked request degrades to the synthetic frame with a
 `degraded` health entry rather than a 429, because the route always answers with
@@ -5023,7 +5026,7 @@ pins and share links already supply complete boxes.
 ### Proxy/Security Baseline
 
 - CCTV proxy rejects client-specified upstream URLs (server-side source allowlist only).
-- CCTV Street View fallback is not an open image proxy: an unregistered camera id is refused unless the server catalog is genuinely empty (demo mode), and a registered camera's client-supplied pose is anchored within 1 km of its registered position. `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` optionally caps that branch per client IP; a block degrades to the synthetic frame, not a 429.
+- CCTV Street View fallback is not an open image proxy: an unregistered camera id is refused, including when the server catalog is empty, and a registered camera's client-supplied pose is anchored within 1.5 km of its registered position. `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` caps that branch per client IP (default 240/min, `0` opts out); a block degrades to the synthetic frame, not a 429.
 - CCTV upstream still-image fetches use an explicit abort controller with an
   eight-second timeout; the timer is cleared on every success or failure path.
 - OpenSky response cache stores successful upstream responses only; OAuth token refresh calls are coalesced.
