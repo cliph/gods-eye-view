@@ -162,15 +162,50 @@ export function resolveStreetViewRequest({ source, params } = {}) {
   };
 }
 
+/**
+ * Default per-IP ceiling for the Street View fallback, applied when
+ * `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is unset.
+ *
+ * This branch is capped BY DEFAULT, unlike the other GEV_RATELIMIT_* throttles.
+ * Issue #20 asks for mandatory quota controls before any Street View request,
+ * and the usual "unlimited unless configured" default would leave the metered
+ * branch uncapped on precisely the installs least likely to tune it. The other
+ * throttles guard user-initiated endpoints; this one guards an endpoint the app
+ * polls for every visible camera, so it cannot rely on an operator noticing.
+ *
+ * Sized well above real use: the client's seeded catalog is 18 cameras at the
+ * 10 s active refresh cadence (`src/layers/cctv/sourcePolicy.js`), so even the
+ * pathological case where every camera falls back at once is 108 req/min —
+ * comfortably inside 240. Set the variable to 0 to opt out explicitly.
+ */
+export const STREET_VIEW_DEFAULT_PER_MIN = 240;
+
+/**
+ * Resolve the configured ceiling. Unset falls to the default cap; an explicit
+ * 0 (or negative) is the documented opt-out; an unparsable value falls back to
+ * the default rather than silently disabling the cap, because a typo in a
+ * throttle must not be the thing that uncaps spending.
+ *
+ * @param {string|undefined} raw - Raw env value.
+ * @returns {number} Requests per minute per IP; 0 means unlimited.
+ */
+export function resolveStreetViewLimit(raw) {
+  const text = String(raw ?? '').trim();
+  if (!text) return STREET_VIEW_DEFAULT_PER_MIN;
+  const value = Number(text);
+  if (!Number.isFinite(value)) return STREET_VIEW_DEFAULT_PER_MIN;
+  return value <= 0 ? 0 : value;
+}
+
 // Construct lazily after the standalone environment has loaded.
 // undefined = not built yet; null = unlimited; fn = active limiter
 let _streetViewRateLimiter;
 
 /**
- * Opt-in per-IP ceiling for the CCTV Street View fallback, the one CCTV branch
- * that spends metered Google quota. Null = unlimited (the default), so this is
- * a runtime no-op unless `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is set to a
- * positive integer.
+ * Per-IP ceiling for the CCTV Street View fallback, the one CCTV branch that
+ * spends metered Google quota. Capped at STREET_VIEW_DEFAULT_PER_MIN unless
+ * `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` overrides it; only an explicit 0
+ * returns null and lifts the cap entirely.
  *
  * Deliberately a SEPARATE budget from `GEV_RATELIMIT_GOOGLE_PER_MIN`: Places
  * search is user-initiated and occasional, while CCTV frames are polled
@@ -189,7 +224,7 @@ let _streetViewRateLimiter;
 export function streetViewRateLimiter({ rebuild = false } = {}) {
   if (rebuild || _streetViewRateLimiter === undefined)
     _streetViewRateLimiter = makeOptInRateLimiter(
-      process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN,
+      resolveStreetViewLimit(process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN),
     );
   return _streetViewRateLimiter;
 }
