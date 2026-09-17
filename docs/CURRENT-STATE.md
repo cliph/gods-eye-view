@@ -588,7 +588,10 @@ a deployment without a Google key never spends a budget it cannot use. An
 unparsable pose value falls back to the registered source and then to the
 historical heading 0 / fov 80 / pitch 0 defaults; heading is normalized into
 [0, 360) and fov and pitch are clamped to the Street View Static API envelope.
-`GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is an opt-in per-IP ceiling on that one
+`GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` defaults to 240 req/min/IP — on by
+default, unlike the opt-in throttles, since the app polls this endpoint itself;
+an explicit 0 opts out and an unparsable value falls back to the default rather
+than uncapping. It is a per-IP ceiling on that one
 branch — unset or 0 is unlimited and unchanged, ordinary upstream frames are
 never throttled, and a blocked request degrades to the synthetic frame with a
 `degraded` health entry rather than a 429, because the route always answers with

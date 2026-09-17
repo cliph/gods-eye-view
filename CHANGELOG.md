@@ -8,10 +8,12 @@
   covers the furthest pose the calibration gizmo can reach, so the calibration
   preview is preserved unchanged; the client's seeded no-config demo catalog now
   shows its synthetic card rather than Street View, as it already does without a
-  Google key. Adds the opt-in per-IP `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN`
-  ceiling on that branch only, which is unlimited by default, never throttles
-  ordinary upstream frames, and degrades to the existing synthetic frame with a
-  visible health entry instead of returning an error.
+  Google key. Adds a per-IP `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` ceiling on
+  that branch only, defaulting to 240 req/min rather than unlimited because the
+  app polls this endpoint for every visible camera instead of waiting on a user
+  action; set it to 0 to opt out. It never throttles ordinary upstream frames,
+  is a separate budget from the Places cap, and degrades to the existing
+  synthetic frame with a visible health entry instead of returning an error.
 
 - Stop one retired bikeshare feed from reporting the whole layer as failed.
   City feeds are fetched independently, but failure was recorded in a single
