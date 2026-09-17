@@ -162,15 +162,32 @@ export function resolveStreetViewRequest({ source, params } = {}) {
   };
 }
 
+/**
+ * Default per-IP ceiling for the Street View fallback, applied when
+ * `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is unset.
+ *
+ * Capped by default like the other cost-bearing throttles, with its own budget:
+ * Issue #20 asks for mandatory quota controls before any Street View request,
+ * and this endpoint is polled for every visible camera rather than called on a
+ * user action, so it cannot rely on an operator noticing.
+ *
+ * Sized well above real use: the client's seeded catalog is 18 cameras at the
+ * 10 s active refresh cadence (`src/layers/cctv/sourcePolicy.js`), so even the
+ * pathological case where every camera falls back at once is 108 req/min —
+ * comfortably inside 240. Set the variable to 0 to opt out explicitly.
+ */
+export const STREET_VIEW_DEFAULT_PER_MIN = 240;
+
 // Construct lazily after the standalone environment has loaded.
 // undefined = not built yet; null = unlimited; fn = active limiter
 let _streetViewRateLimiter;
 
 /**
- * Opt-in per-IP ceiling for the CCTV Street View fallback, the one CCTV branch
- * that spends metered Google quota. Null = unlimited (the default), so this is
- * a runtime no-op unless `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` is set to a
- * positive integer.
+ * Per-IP ceiling for the CCTV Street View fallback, the one CCTV branch that
+ * spends metered Google quota. Capped at STREET_VIEW_DEFAULT_PER_MIN unless
+ * `GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN` overrides it; only an explicit 0
+ * returns null and lifts the cap entirely; an unreadable value keeps the
+ * default (`resolvePerMinuteCap`).
  *
  * Deliberately a SEPARATE budget from `GEV_RATELIMIT_GOOGLE_PER_MIN`: Places
  * search is user-initiated and occasional, while CCTV frames are polled
@@ -190,7 +207,7 @@ export function streetViewRateLimiter({ rebuild = false } = {}) {
   if (rebuild || _streetViewRateLimiter === undefined)
     _streetViewRateLimiter = makeCostRateLimiter(
       process.env.GEV_RATELIMIT_CCTV_STREETVIEW_PER_MIN,
-      0,
+      STREET_VIEW_DEFAULT_PER_MIN,
     );
   return _streetViewRateLimiter;
 }
