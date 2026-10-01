@@ -52,6 +52,8 @@
   instead of a blank tile. The icons are generated from `public/logo.svg` by
   `node scripts/generate-icons.mjs` and committed, so a plain `vite build` needs
   no image toolchain. The existing SVG favicon still serves the browser tab.
+  Manifest paths are relative to the manifest, so a build served under a path
+  prefix installs and launches inside that prefix.
 
 - Add nine Ontario transit feeds: TTC, MiWay, Hamilton HSR, Durham Region,
   YRT/Viva, Guelph, Burlington, Barrie and Kingston, each carrying its own
